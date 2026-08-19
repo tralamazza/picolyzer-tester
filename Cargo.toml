@@ -1,0 +1,52 @@
+[workspace]
+members = ["crates/tester-core"]
+
+[package]
+name = "picolyzer-tester"
+version = "0.3.0"
+edition = "2024"
+description = "Raspberry Pi Pico 2 as a known-good stimulus generator for testing logic analyzers"
+
+[dependencies]
+# Cortex-M
+cortex-m = "0.7.7"
+cortex-m-rt = "0.7.5"
+
+embedded-hal = "1.0.0"
+rp235x-hal = { version = "0.4.0", features = [
+  "binary-info",
+  "critical-section-impl",
+  "rt",
+] }
+rp-binary-info = "0.1.1"
+
+# PIO assembler. `pio_asm!` lives in the `pio` crate as of 0.3, which is also
+# the version rp235x-hal 0.4 links against - they must match.
+pio = "0.3"
+
+# USB CDC console
+usb-device = "0.3.2"
+usbd-serial = "0.2.2"
+
+heapless = "0.8"
+
+# Timing, parsing and pattern synthesis, split out so it is unit-testable on
+# the host. See crates/tester-core.
+tester-core = { path = "crates/tester-core" }
+
+# No defmt/RTT on purpose. USB is this device's only interface and every command
+# already returns a structured reply, so a second log channel that needs a probe
+# buys little. It also avoids a foot-gun: RTT's blocking mode is armed by the
+# host and the flag persists in RAM after the host detaches, so ending a
+# probe-rs session without a reset leaves log writes able to spin once the
+# buffer fills - which would stall the USB poll loop.
+panic-halt = "1.0.0"
+
+[lints.rust]
+warnings = "deny"
+
+[profile.release]
+# Timing-critical code: keep debug info for probe-rs without changing codegen.
+debug = 2
+lto = "fat"
+codegen-units = 1

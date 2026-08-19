@@ -1,0 +1,15 @@
+[default.general]
+# probe-rs names the RP2350 family "RP235x"; "RP2350" is not a known target.
+chip = "RP235x"
+
+[default.rtt]
+# No RTT: this firmware deliberately has no defmt/RTT logger. Diagnostics go
+# over the USB serial console instead - see the note in Cargo.toml.
+enabled = false
+
+[default.gdb]
+enabled = false
+
+[default.reset]
+# Run straight after flashing rather than halting at main.
+halt_afterwards = false

@@ -1,0 +1,10 @@
+[package]
+name = "tester-core"
+version = "0.1.0"
+edition = "2024"
+description = "Pure timing, parsing and waveform-synthesis logic for picolyzer-tester"
+
+[dependencies]
+
+[lints.rust]
+warnings = "deny"
