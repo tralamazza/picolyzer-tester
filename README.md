@@ -255,3 +255,13 @@ ok mode=glitch ticks=1 width_ps=6666 samples=4 preloaded=yes
 `preloaded=yes` means the whole burst was in the FIFO before the clock started,
 so it ran with no refill and cannot have stalled. If the analyzer misses this
 pulse, that is a real limit on its side. Walk `ticks` up until it catches it.
+
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or
+  http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+
+at your option.
