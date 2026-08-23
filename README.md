@@ -86,8 +86,8 @@ At the stock 150 MHz system clock:
 
 | | |
 |---|---|
-| Timing resolution | 6.667 ns (one system clock) |
-| Narrowest pulse | 6.667 ns |
+| Timing resolution | 6.666 ns (one system clock) |
+| Narrowest pulse | 6.666 ns |
 | Pattern buffer | 4096 samples |
 
 The fast end depends entirely on **how** a signal is produced, and the three
@@ -97,7 +97,7 @@ paths are not interchangeable:
 |---|---|---|---|
 | FIFO-free PIO loop | `square`, `toggle`, `count` | 75 MHz | No — nothing to starve |
 | Preloaded burst, ≤16 samples | `glitch`, `skew`, short `play` | 150 MSa/s | No — loaded before the clock starts |
-| Chained DMA | `walk`, `walkz`, `gray`, `ramp`, `play` | 150 MSa/s | Only for very short loops, below |
+| Chained DMA | `walk`, `walkz`, `gray`, `ramp`, `pulse`, `play` | 150 MSa/s | Only for very short loops, below |
 
 The CPU is not in any of these paths, which is what makes the device
 trustworthy at the top of its range.
@@ -165,7 +165,7 @@ toggle <mask|all> <hz>     square wave on a channel mask
 count <hz>                 free-running 16-bit binary count
 
 pulse <ch> <hi_ns> <period_ns>    pulse train
-glitch <ch> <ticks>        one narrow pulse, ticks x 6.67 ns
+glitch <ch> <ticks>        one narrow pulse, ticks x 6.666 ns
 skew <chA> <chB> <ticks>   two rising edges, ticks apart
 walk <hz> [width]          walking ones
 walkz <hz> [width]         walking zeros
@@ -204,7 +204,7 @@ Or `cargo run --release` to flash via picotool with the board in BOOTSEL. Then
 talk to it — baud rate is irrelevant on a CDC link:
 
 ```sh
-tools/console.py                        # hardware self-check, 55 cases
+tools/console.py                        # hardware self-check, 59 cases
 tools/console.py "square 0 1M" "status" # one-shot commands
 picocom /dev/cu.usbmodem00011           # or interactively
 ```
@@ -212,7 +212,7 @@ picocom /dev/cu.usbmodem00011           # or interactively
 ## Status
 
 Verified on a Pico 2 W over a Raspberry Pi Debug Probe: 37 host unit tests and
-55 hardware checks pass, covering every command, the achieved-rate arithmetic
+59 hardware checks pass, covering every command, the achieved-rate arithmetic
 cross-checked against the reported divider, both ends of the rate range, the DMA
 streaming path at full rate, every example in this README, and the error paths.
 

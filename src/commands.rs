@@ -29,7 +29,7 @@ pub const HELP: &str = concat!(
     "  count <hz>                free-running 16-bit binary count\r\n",
     "\r\n",
     "  pulse <ch> <hi_ns> <period_ns>\r\n",
-    "  glitch <ch> <ticks>       one narrow pulse, ticks x 6.67ns\r\n",
+    "  glitch <ch> <ticks>       one narrow pulse, ticks x 6.666ns\r\n",
     "  skew <chA> <chB> <ticks>  two rising edges, ticks apart\r\n",
     "  walk <hz> [width]         walking ones\r\n",
     "  walkz <hz> [width]        walking zeros\r\n",

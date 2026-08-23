@@ -137,6 +137,8 @@ def rate_matches_divisor(reply, key, cycles_per_period):
 # (command, predicate on the final reply line, description)
 CHECKS = [
     ("id", lambda r: r.startswith("ok") and "sysclk=150000000" in r, "identity and clock"),
+    ("help", lambda r: r == "ok", "help text prints"),
+    ("pins", lambda r: r == "ok", "pin map prints"),
     ("stop", lambda r: r.startswith("ok"), "stop is accepted"),
     ("status", lambda r: "mode=stopped" in r and "txstall=no" in r, "idle status"),
     # The headline claim: 7 MHz is unreachable, so it must not claim 7 MHz. The
@@ -152,7 +154,10 @@ CHECKS = [
     ("glitch 0 1", lambda r: "width_ps=6666" in r and "preloaded=yes" in r,
      "one-tick glitch runs from the FIFO"),
     ("skew 0 1 3", lambda r: r.startswith("ok") and "ticks=3" in r, "cross-channel skew"),
+    ("pulse 0 100 1000", lambda r: r.startswith("ok") and "samples=150" in r, "pulse train"),
     ("walk 100k", lambda r: r.startswith("ok") and "width=16" in r, "walking ones"),
+    ("walkz 100k", lambda r: r.startswith("ok") and "width=16" in r and "samples=16" in r,
+     "walking zeros"),
     ("gray 100k", lambda r: r.startswith("ok") and "samples=256" in r, "gray sweep"),
     ("ramp 100k", lambda r: r.startswith("ok"), "binary ramp"),
     ("load 0x0001 0x0002 0x0004", lambda r: "loaded=3" in r and "padded_to=4" in r,
