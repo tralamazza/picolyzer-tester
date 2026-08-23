@@ -22,15 +22,15 @@ ground wires** — one per few channels), and the logic analyzer you want to
 test.
 
 1. Download `picolyzer-tester-v0.3.0.uf2` from the
-   [latest release](../../releases/latest).
+   [latest release](https://github.com/tralamazza/picolyzer-tester/releases/latest).
 2. Hold BOOTSEL while plugging in the Pico, drag the file onto the `RPI-RP2`
    drive. It reboots and appears as a USB serial port.
-3. Open the port — baud rate is irrelevant on a CDC link:
+3. Open the port with any terminal — baud rate is irrelevant on a CDC link:
 
 ```sh
-tools/console.py                        # hardware self-check, 59 cases
-tools/console.py "square 0 1M" "status" # one-shot commands
 picocom /dev/cu.usbmodem00011           # interactive (macOS; /dev/ttyACM0 on Linux)
+tools/console.py                        # or, from this repository: a 59-case self-check
+tools/console.py "square 0 1M" "status" # one-shot commands
 ```
 
 ## First session
@@ -122,7 +122,7 @@ signal can go depends on which of three paths produces it:
 | Path | Commands | Ceiling | Can it drop samples? |
 |---|---|---|---|
 | FIFO-free PIO loop | `square`, `toggle`, `count` | 75 MHz | No |
-| Preloaded burst, ≤16 samples | `glitch`, `skew`, short `play` | 150 MSa/s | No |
+| Preloaded burst, ≤16 samples | `glitch`, `skew`, one-shot `play` | 150 MSa/s | No |
 | Chained DMA | `walk`, `walkz`, `gray`, `ramp`, `pulse`, `play` | 150 MSa/s | Only short fast loops |
 
 A missing sample with `txstall=no` is the analyzer's fault; with `txstall=yes`
@@ -164,7 +164,7 @@ spi 1M de ad be ef
 i2c 100k 0x50 00 ff
 ```
 
-A common 24 MSa/s clone cannot see a 6.7 ns glitch and should not be expected
+A common 24 MSa/s clone cannot see a 6.666 ns glitch and should not be expected
 to. Start at rates your analyzer claims to support, confirm those are clean,
 then walk up until it breaks — that boundary is the useful number.
 
