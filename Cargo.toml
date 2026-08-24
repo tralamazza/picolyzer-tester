@@ -3,7 +3,7 @@ members = ["crates/tester-core"]
 
 [package]
 name = "picolyzer-tester"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Raspberry Pi Pico 2 as a known-good stimulus generator for testing logic analyzers"
