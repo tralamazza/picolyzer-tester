@@ -2,7 +2,8 @@ name: CI
 
 # The 59 hardware checks in `tools/console.py` are this project's real
 # verification and no runner can perform them, so CI deliberately stops at what
-# a machine without a Pico can prove: it formats, lints, unit-tests and links.
+# a machine without a Pico can prove: it formats, lints, unit-tests, links, and
+# checks that the I2C timing model still matches the generated code.
 # Releases are cut locally by `just release`.
 
 on:
@@ -19,20 +20,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: thumbv8m.main-none-eabihf
-          components: rustfmt, clippy
+      # No toolchain action: rust-toolchain.toml is the single source of truth,
+      # and an action that sets an override would quietly win over it. `rustup
+      # show` installs the pinned channel with its targets and components.
+      - run: rustup show
 
       - uses: Swatinem/rust-cache@v2
 
-      # CI runs the same recipe a developer runs rather than a copy of its
+      # CI runs the same recipes a developer runs rather than copies of their
       # commands: a divergence between the two is exactly what this job exists
       # to catch.
       - uses: taiki-e/install-action@just
 
       - run: just check
 
-      # clippy never invokes the linker, so it would not notice a broken
-      # `memory.x` or a symbol that only fails at link time.
-      - run: cargo build --release
+      # Builds and links - clippy alone never invokes the linker, so it would
+      # not notice a broken `memory.x` - then hashes the I2C bit-bang codegen.
+      - run: just guard
+
+  # Non-blocking, and deliberately so. The pin above means new lints and
+  # codegen improvements stay invisible until someone bumps it on purpose; this
+  # surfaces them without letting a compiler release break `main`. A failure
+  # here is a to-do, not a regression.
+  stable-lints:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: rustup toolchain install stable --profile minimal --component clippy --target thumbv8m.main-none-eabihf
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: stable
+
+      # `+stable` outranks rust-toolchain.toml; a `rustup override` would not.
+      - run: cargo +stable clippy --release --bins -- -D warnings

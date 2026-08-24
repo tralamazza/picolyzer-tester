@@ -1,0 +1,19 @@
+# Pinned, not tracking `stable`, because two constants in
+# crates/tester-core/src/i2c_timing.rs are fitted to the machine code LLVM emits
+# for the I2C delay loop. They describe the compiler's output, not the RP2350,
+# and the firmware reports `actual_hz` from them - so a toolchain that reshapes
+# that function silently turns a measured claim into a guess.
+#
+# 1.95.0 is the toolchain the published v0.4.0 binary was built with and the one
+# the constants were fitted against.
+#
+# Bumping this is a deliberate act: change the channel, run `just guard`, and if
+# it fails, re-measure SCL on a logic analyzer before trusting `actual_hz`
+# again. tools/codegen-guard.sh is what tells you which case you are in.
+#
+# CI additionally runs clippy on `stable` as a non-blocking job, so new lints
+# still surface without the pin hiding them.
+[toolchain]
+channel = "1.95.0"
+targets = ["thumbv8m.main-none-eabihf"]
+components = ["rustfmt", "clippy", "llvm-tools"]

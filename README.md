@@ -147,7 +147,9 @@ the point of the `status` field.
   from a model of the delay loop fitted to bench measurements, not from a
   divider, so `actual_hz` is a prediction: measured within 1% of the report at
   10 k, 50 k, 100 k and 400 kHz, and the ceiling is 617 kHz rather than the
-  1 MHz a PIO-driven bus would reach.
+  1 MHz a PIO-driven bus would reach. That model is only valid for the machine
+  code it was fitted to, which is why the toolchain is pinned and `just guard`
+  fails if the codegen moves.
 
 **Verification status:** 46 host unit tests and 59 hardware checks pass on a
 Pico 2 W, covering every command, both ends of the rate range, the DMA
@@ -193,11 +195,21 @@ workflow is one command each:
 
 ```sh
 just check     # fmt, clippy, host unit tests - no hardware needed
-just verify    # the above, plus the 59 hardware checks over USB
+just guard     # check the I2C timing model still matches the generated code
+just verify    # check, plus the 59 hardware checks over USB
 just flash     # build and download over a debug probe
 just uf2       # build and package picolyzer-tester-v<version>.uf2
 just release minor   # flash + verify, then bump, tag, push, draft the release
 ```
+
+The toolchain is pinned in `rust-toolchain.toml`. That is not habit: the two
+constants in `crates/tester-core/src/i2c_timing.rs` are fitted to the machine
+code LLVM emits for the I2C delay loop, so they describe the compiler's output
+rather than the chip. `just guard` hashes the instruction bytes of that one
+function; if a toolchain or HAL bump reshapes it, the build fails and says to
+re-measure SCL on an analyzer before `actual_hz` can be trusted again. Bumping
+the pin is a deliberate act. CI also runs clippy on `stable` as a non-blocking
+job, so new lints still surface.
 
 Without `just`, the same steps by hand — note the explicit `--target`, since
 `.cargo/config.toml` defaults every build to the RP2350:
