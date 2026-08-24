@@ -1,0 +1,38 @@
+name: CI
+
+# The 59 hardware checks in `tools/console.py` are this project's real
+# verification and no runner can perform them, so CI deliberately stops at what
+# a machine without a Pico can prove: it formats, lints, unit-tests and links.
+# Releases are cut locally by `just release`.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv8m.main-none-eabihf
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      # CI runs the same recipe a developer runs rather than a copy of its
+      # commands: a divergence between the two is exactly what this job exists
+      # to catch.
+      - uses: taiki-e/install-action@just
+
+      - run: just check
+
+      # clippy never invokes the linker, so it would not notice a broken
+      # `memory.x` or a symbol that only fails at link time.
+      - run: cargo build --release

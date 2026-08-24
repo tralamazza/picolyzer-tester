@@ -7,6 +7,9 @@ version = "0.3.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Raspberry Pi Pico 2 as a known-good stimulus generator for testing logic analyzers"
+# Firmware, not a library: it ships as a .uf2 on GitHub Releases. Set here as
+# well as in release.toml so `cargo publish` refuses even if invoked by hand.
+publish = false
 
 [dependencies]
 # Cortex-M

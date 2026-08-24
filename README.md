@@ -188,16 +188,30 @@ cargo build --release
 cargo run --release    # flashes via picotool (board in BOOTSEL)
 ```
 
-With a debug probe instead (probe-rs names this family `RP235x`; `RP2350` is
-not a known target):
+With [`just`](https://github.com/casey/just) installed, the rest of the
+workflow is one command each:
 
 ```sh
+just check     # fmt, clippy, host unit tests - no hardware needed
+just verify    # the above, plus the 59 hardware checks over USB
+just flash     # build and download over a debug probe
+just uf2       # build and package picolyzer-tester-v<version>.uf2
+just release minor   # flash + verify, then bump, tag, push, draft the release
+```
+
+Without `just`, the same steps by hand — note the explicit `--target`, since
+`.cargo/config.toml` defaults every build to the RP2350:
+
+```sh
+cargo clippy --release --bins -- -D warnings
+cargo test -p tester-core --target "$(rustc -vV | sed -n 's/^host: //p')"
 probe-rs download --chip RP235x \
     target/thumbv8m.main-none-eabihf/release/picolyzer-tester
 probe-rs reset --chip RP235x
 ```
 
-Host-side unit tests: `cargo test -p tester-core --target aarch64-apple-darwin`.
+probe-rs names this family `RP235x`; `RP2350` is not a known target.
+
 Design rationale is in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## License

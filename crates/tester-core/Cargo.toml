@@ -7,5 +7,10 @@ description = "Pure timing, parsing and waveform-synthesis logic for picolyzer-t
 
 [dependencies]
 
+# An internal path dependency, never published and never versioned separately:
+# `just release` bumps the firmware only.
+[package.metadata.release]
+release = false
+
 [lints.rust]
 warnings = "deny"

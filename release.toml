@@ -1,0 +1,25 @@
+# cargo-release configuration. Driven by `just release <level>`.
+
+# This project ships a .uf2, not a crate.
+publish = false
+
+# The existing tag is `v0.3.0`. cargo-release's default inside a workspace is
+# `{{crate_name}}-v{{version}}`, which would silently start a second scheme.
+tag-name = "v{{version}}"
+tag-message = "picolyzer-tester {{version}}"
+
+# `{{next_version}}`, not `{{version}}`: inside a workspace the release commit
+# is shared across packages, so the per-package `{{version}}` does not render
+# here - cargo-release only warns about it and commits the literal braces.
+pre-release-commit-message = "chore: release v{{next_version}}"
+
+# The README quotes the version in three places. `exactly = 1` turns a stale or
+# reworded line into a failed release rather than a half-updated README.
+pre-release-replacements = [
+  # Quick start: the release asset to download.
+  { file = "README.md", search = "picolyzer-tester-v[0-9]+\\.[0-9]+\\.[0-9]+\\.uf2", replace = "picolyzer-tester-v{{version}}.uf2", exactly = 1 },
+  # First session: the console banner.
+  { file = "README.md", search = "^picolyzer-tester [0-9]+\\.[0-9]+\\.[0-9]+ - ", replace = "picolyzer-tester {{version}} - ", exactly = 1 },
+  # First session: the `id` reply.
+  { file = "README.md", search = "fw=picolyzer-tester/[0-9]+\\.[0-9]+\\.[0-9]+", replace = "fw=picolyzer-tester/{{version}}", exactly = 1 },
+]
