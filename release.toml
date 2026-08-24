@@ -8,10 +8,13 @@ publish = false
 tag-name = "v{{version}}"
 tag-message = "picolyzer-tester {{version}}"
 
-# `{{next_version}}`, not `{{version}}`: inside a workspace the release commit
-# is shared across packages, so the per-package `{{version}}` does not render
-# here - cargo-release only warns about it and commits the literal braces.
-pre-release-commit-message = "chore: release v{{next_version}}"
+# `consolidate-commits` defaults to `is_workspace`, i.e. true here, which takes
+# the workspace commit path. That path only offers {{version}}/{{metadata}}/
+# {{date}}, and fills {{version}} only when `shared-version` is set - so the
+# template silently committed literal braces. Only one package is ever released,
+# so a per-package commit is the same commit with the full variable set.
+consolidate-commits = false
+pre-release-commit-message = "chore: release v{{version}}"
 
 # The README quotes the version in three places. `exactly = 1` turns a stale or
 # reworded line into a failed release rather than a half-updated README.
