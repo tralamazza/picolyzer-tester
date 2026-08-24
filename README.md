@@ -9,7 +9,7 @@ exactly what it emitted, over a USB serial console. Clip the analyzer under
 test onto the pins, capture, compare: every discrepancy is either the
 analyzer's fault or this device's, and the replies tell you which.
 
-- **16-channel parallel bus** at up to 150 MSa/s, down to single-Hz rates
+- **16-channel parallel bus** at up to 150 MSa/s, down to 9 Hz
 - **UART, SPI and I2C** traffic to exercise protocol decoders
 - **Structured replies** — every command returns `ok ...` or `err ...` with the
   parameters actually achieved, never silently rounded
@@ -77,7 +77,7 @@ walk <hz> [width]          walking ones
 walkz <hz> [width]         walking zeros
 gray <hz> [width]          gray code sweep, one bit changes per step
 ramp <hz> [width]          binary count via the pattern engine
-load <hex> <hex> ...       arbitrary 16-bit samples
+load <sample> ...          arbitrary 16-bit samples
 play <hz> [loop]           play the loaded samples
 
 uart <baud> <hex...>       8N1 frames
@@ -85,8 +85,12 @@ spi <hz> <hex...>          mode 0, MSB first
 i2c <hz> <addr7> <hex...>
 ```
 
-Numbers accept `42`, `0xff`, `0b1010_1010`. Frequencies accept `115200`, `1M`,
-`2k5` (2500), `1M5` (1500000).
+Numbers accept `42`, `0xff`, `0b1010_1010` — decimal unless prefixed, so
+`load 10` loads ten and `load 0x10` loads sixteen. The one exception is the
+payload of `uart`, `spi` and `i2c`, which is always hex with or without the
+prefix: `uart 115200 48 65 6c 6c 6f` sends `Hello`.
+
+Frequencies accept `115200`, `1M`, `2k5` (2500), `1M5` (1500000).
 
 ## Pin map and wiring
 
