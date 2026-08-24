@@ -23,14 +23,36 @@ import time
 DEFAULT_GLOBS = ["/dev/cu.usbmodem00011", "/dev/cu.usbmodem*"]
 
 
-def find_port(explicit=None):
+def find_port(explicit=None, wait_s=10.0):
+    """Locate the board's CDC port, waiting for it to enumerate.
+
+    Resetting the board over a debug probe drops the USB device for a second or
+    two, so flashing and then immediately self-checking races the
+    re-enumeration. Waiting matters more than it looks: the debug probe presents
+    a CDC port of its own, and during that window the fallback glob matches the
+    probe instead of the board, which fails every check with a wall of timeouts
+    rather than an honest "not found".
+    """
     if explicit:
         return explicit
-    for pattern in DEFAULT_GLOBS:
-        matches = sorted(glob.glob(pattern))
-        if matches:
+
+    exact, fallback = DEFAULT_GLOBS[0], DEFAULT_GLOBS[1:]
+    # A short grace period when some other CDC device is already present, the
+    # full wait when nothing is: a board named differently on another host
+    # should not pay ten seconds on every run.
+    deadline = time.time() + wait_s
+    grace = None
+    while True:
+        if matches := sorted(glob.glob(exact)):
             return matches[0]
-    raise SystemExit("no USB serial device found; is the board plugged in?")
+        others = sorted(m for p in fallback for m in glob.glob(p))
+        if others:
+            grace = time.time() + 1.5 if grace is None else grace
+            if time.time() >= grace:
+                return others[0]
+        elif time.time() >= deadline:
+            raise SystemExit("no USB serial device found; is the board plugged in?")
+        time.sleep(0.1)
 
 
 class Console:

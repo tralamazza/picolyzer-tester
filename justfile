@@ -58,7 +58,9 @@ uf2:
 release level: check flash verify
     #!/usr/bin/env bash
     set -euo pipefail
-    cargo release {{ level }} --execute
+    # `--no-confirm`: the gate is the check/flash/verify chain above, not a y/n
+    # prompt, and a prompt makes the recipe unusable from anything but a TTY.
+    cargo release {{ level }} --execute --no-confirm
     version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
     just uf2
     gh release create "v${version}" "picolyzer-tester-v${version}.uf2" \
