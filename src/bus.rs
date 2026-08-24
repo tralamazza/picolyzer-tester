@@ -348,7 +348,10 @@ impl Bus {
         // what makes writing it here safe.
         self.stop();
         let words = pattern_words();
-        for (w, pair) in samples.chunks_exact(2).enumerate() {
+        // `as_chunks`, not `chunks_exact(2)`: the length is a constant, so this
+        // yields `&[u16; 2]` and the indexing below needs no bounds check. The
+        // remainder is empty by the even-length check above.
+        for (w, pair) in samples.as_chunks::<2>().0.iter().enumerate() {
             // Right shift direction sends the low half first, so sample 2n goes
             // in the low 16 bits and sample 2n+1 in the high half.
             words[w] = pair[0] as u32 | (pair[1] as u32) << 16;
