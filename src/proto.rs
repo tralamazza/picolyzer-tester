@@ -319,26 +319,28 @@ impl Proto {
     /// The ninth clock of every byte is an unasserted ACK slot, because there
     /// is no slave to assert it. Decoders show it as NAK; that is expected and
     /// does not mean the frame is malformed.
-    pub fn i2c_send(&mut self, addr: u8, bytes: &[u8], hz: u32) -> Result<(), &'static str> {
+    /// Returns the achieved SCL frequency in milli-hertz, which is not the
+    /// requested one: see [`tester_core::i2c_timing`].
+    pub fn i2c_send(&mut self, addr: u8, bytes: &[u8], hz: u32) -> Result<u64, &'static str> {
         if addr > 0x7f {
             return Err("address must be 7-bit");
         }
         if bytes.len() > MAX_PAYLOAD {
             return Err("payload too long");
         }
-        if hz == 0 {
-            return Err("bad frequency");
-        }
+        // The delay loop is not one cycle per count and each bit pays a fixed
+        // GPIO cost, so the quarter-bit count comes from a fitted model rather
+        // than from sysclk/hz/4. See `tester_core::i2c_timing`.
+        let plan = match tester_core::i2c_timing::plan(crate::board::SYSCLK_HZ, hz) {
+            Ok(p) => p,
+            Err(e) => return Err(e.as_str()),
+        };
         self.stop();
-
-        // Quarter-bit delay in CPU cycles, so a full bit is four of these and
-        // SDA transitions land mid-way through the SCL low phase.
-        let quarter = (crate::board::SYSCLK_HZ / hz / 4).max(1);
 
         let mut w = I2cWire {
             scl: &mut self.scl,
             sda: &mut self.sda,
-            quarter,
+            quarter: plan.quarter,
         };
 
         w.start();
@@ -348,7 +350,7 @@ impl Proto {
             w.byte(*b);
         }
         w.stop_cond();
-        Ok(())
+        Ok(plan.achieved_millihz)
     }
 }
 

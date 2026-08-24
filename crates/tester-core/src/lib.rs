@@ -9,8 +9,10 @@
 
 #![cfg_attr(not(test), no_std)]
 
+pub mod i2c_timing;
 pub mod parse;
 pub mod pattern;
 pub mod timing;
 
+pub use i2c_timing::I2cRateError;
 pub use timing::{Divisor, Rate, Timing, TimingError};

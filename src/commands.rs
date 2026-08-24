@@ -696,15 +696,20 @@ fn cmd_i2c(proto: &mut Proto, t: &Tokens) -> Reply {
         Err(e) => return payload_err(e, t.rest(3)),
     };
     let n = bytes.len();
-    if let Err(e) = proto.i2c_send(addr, bytes, hz) {
-        return err(e);
-    }
+    let achieved = match proto.i2c_send(addr, bytes, hz) {
+        Ok(a) => a,
+        Err(e) => return err(e),
+    };
 
     let mut r = ok();
     field(&mut r, "mode", format_args!("i2c"));
     field(&mut r, "addr", format_args!("{addr:#04x}"));
     field(&mut r, "rw", format_args!("write"));
     field(&mut r, "req_hz", format_args!("{hz}"));
+    // Bit-banged, so this is a model of the emitted clock rather than a
+    // divider readback - but reporting the request as if it were achieved is
+    // exactly what this project exists not to do.
+    report_rate(&mut r, "actual_hz", achieved);
     field(&mut r, "bytes", format_args!("{n}"));
     // The transaction is already complete: i2c_send blocks, because at 100 kHz
     // a short frame is well under a millisecond and a synchronous reply is

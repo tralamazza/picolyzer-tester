@@ -139,13 +139,22 @@ the point of the `status` field.
   1145 Hz, `walk` at 9 Hz, `gray`/`ramp` (width 8) at 144 Hz, `play` at
   2289 Sa/s. Anything slower is refused, never silently sped up.
 - **I2C is bit-banged from the CPU**, so its edge placement is approximate.
-  Fine for exercising a decoder, useless for measuring one.
+  Fine for exercising a decoder, useless for measuring one. Its clock comes
+  from a model of the delay loop fitted to bench measurements, not from a
+  divider, so `actual_hz` is a prediction: measured within 1% of the report at
+  10 k, 50 k, 100 k and 400 kHz, and the ceiling is 617 kHz rather than the
+  1 MHz a PIO-driven bus would reach.
 
-**Verification status:** 37 host unit tests and 59 hardware checks pass on a
+**Verification status:** 46 host unit tests and 59 hardware checks pass on a
 Pico 2 W, covering every command, both ends of the rate range, the DMA
-streaming path at full rate, and the error paths. The electrical side is
-unverified — no scope has touched a pin — so edge placement, rise times and
-crosstalk are unmeasured.
+streaming path at full rate, and the error paths.
+
+Measured against a logic analyzer at 200 MSa/s: frequency exact to the 75 MHz
+ceiling, including fractional divisors; a one-tick 6.666 ns `glitch` caught
+every time; `skew` accurate to within one sample at 1–75 ticks; the GP16 marker
+rising in the same sample as the data, indistinguishable from two pins driven
+by the same state machine; UART, SPI and I2C decoding byte-exact. No scope has
+touched a pin, so rise times and crosstalk remain unmeasured.
 
 ## Testing recipes
 
