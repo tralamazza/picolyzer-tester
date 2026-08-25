@@ -72,7 +72,15 @@ release level: check guard flash verify
     cargo release {{ level }} --execute --no-confirm
     version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
     just uf2
+    # Reflash. The gating chain above ran before the version bump, so the board
+    # is still running a binary stamped with the *previous* CARGO_PKG_VERSION -
+    # same code, but `id` disagrees with the release that was just cut, and the
+    # obvious next move after releasing is to trust the bench. Verification
+    # order cannot simply be moved after the bump: a failure there would strand
+    # an already-committed, already-pushed tag.
+    just flash
     gh release create "v${version}" "picolyzer-tester-v${version}.uf2" \
         --draft --generate-notes --title "v${version}"
     echo
     echo "Draft release v${version} created. Review the notes, then publish it."
+    echo "The board is running v${version}; confirm with: tools/console.py id"

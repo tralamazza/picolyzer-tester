@@ -199,7 +199,7 @@ just guard     # check the I2C timing model still matches the generated code
 just verify    # check, plus the 59 hardware checks over USB
 just flash     # build and download over a debug probe
 just uf2       # build and package picolyzer-tester-v<version>.uf2
-just release minor   # flash + verify, then bump, tag, push, draft the release
+just release minor   # flash + verify, bump, tag, push, reflash, draft the release
 ```
 
 The toolchain is pinned in `rust-toolchain.toml`. That is not habit: the two
