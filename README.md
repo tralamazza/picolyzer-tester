@@ -21,7 +21,7 @@ You need a Pico 2 or Pico 2 W, a USB cable, jumper wires (with **several
 ground wires** — one per few channels), and the logic analyzer you want to
 test.
 
-1. Download `picolyzer-tester-v0.4.0.uf2` from the
+1. Download `picolyzer-tester-v0.5.0.uf2` from the
    [latest release](https://github.com/tralamazza/picolyzer-tester/releases/latest).
 2. Hold BOOTSEL while plugging in the Pico, drag the file onto the `RPI-RP2`
    drive. It reboots and appears as a USB serial port.
@@ -36,10 +36,10 @@ tools/console.py "square 0 1M" "status" # one-shot commands
 ## First session
 
 ```
-picolyzer-tester 0.4.0 - logic analyzer stimulus generator
+picolyzer-tester 0.5.0 - logic analyzer stimulus generator
 `help` for commands
 > id
-ok fw=picolyzer-tester/0.4.0 sysclk=150000000 channels=16 tick_ps=6666 max_samples=4096 xtal_ppm=30
+ok fw=picolyzer-tester/0.5.0 sysclk=150000000 channels=16 tick_ps=6666 max_samples=4096 xtal_ppm=30
 > glitch 0 1
 ok mode=glitch ticks=1 width_ps=6666 samples=4 preloaded=yes
 > status
