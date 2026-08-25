@@ -308,7 +308,8 @@ impl Bus {
         set_bus_output(&mut sm);
         // The program pulls the mask once before entering its loop.
         tx.write(mask as u32);
-        self.launch(sm, rx, tx, marker_ticks, divisor);
+        // Two instructions per period: `mov pins, x` then `mov pins, null`.
+        self.launch(sm, rx, tx, marker_ticks, 2, divisor);
         self.mode = Mode::Toggle;
     }
 
@@ -325,7 +326,8 @@ impl Bus {
         set_bus_output(&mut sm);
         // Start from all-ones so the emitted complement starts at zero.
         tx.write(0xffff);
-        self.launch(sm, rx, tx, marker_ticks, divisor);
+        // Two instructions per code: the `jmp x--` loop plus `mov pins, !x`.
+        self.launch(sm, rx, tx, marker_ticks, 2, divisor);
         self.mode = Mode::Count;
     }
 
@@ -414,7 +416,8 @@ impl Bus {
             }
         }
 
-        self.launch(sm, rx, tx, marker_ticks, divisor);
+        // `out pins, 16` is one instruction, so one cycle per sample.
+        self.launch(sm, rx, tx, marker_ticks, 1, divisor);
         self.stalled = false;
         self.mode = if preloaded_all {
             Mode::PatternOnce
@@ -459,16 +462,21 @@ impl Bus {
     }
 
     /// Build and sync-start SM0 together with the marker on SM1.
+    ///
+    /// `cycles_per_tick` is how many PIO cycles the *data* program spends per
+    /// tick the caller reasons about - one output sample for `count` and
+    /// `pattern`, one full period for `toggle`. It is needed because the marker
+    /// shares the data clock but has its own instruction count, so without it
+    /// the same `marker_ticks` produces different widths in different modes.
     fn launch(
         &mut self,
         sm0: StateMachine<Sm0, Stopped>,
         rx0: Rx<Sm0>,
         tx0: Tx<Sm0>,
         marker_ticks: u32,
+        cycles_per_tick: u32,
         divisor: Divisor,
     ) {
-        // The marker runs at the same clock as the data so its width is
-        // expressed in the same ticks the caller is reasoning about.
         // Safety: the master copy stays in `self.programs`.
         let prog = unsafe { self.programs.marker.share() };
         let (mut sm1, rx1, mut tx1) = PIOBuilder::from_installed_program(prog)
@@ -477,7 +485,14 @@ impl Bus {
             .out_shift_direction(ShiftDirection::Right)
             .build(self.take_sm1());
         sm1.set_pindirs([(MARKER_PIN, PinDir::Output)]);
-        tx1.write(marker_ticks.max(1));
+        // The marker program holds the pin high for `x + 2` cycles: `jmp x--`
+        // runs x+1 times, and the pin only drops at the end of the following
+        // `set pins, 0`. Measured on an SLogic16 U3 at 5 MSa/s: 8 written gave
+        // 250 samples under `count 100k` (10 cycles of a 200 kHz SM clock) and
+        // 500 under `ramp 100k` (10 cycles at 100 kHz). Solving back through
+        // both gives the width in ticks the caller asked for.
+        let cycles = marker_ticks.max(1).saturating_mul(cycles_per_tick.max(1));
+        tx1.write(cycles.saturating_sub(2).max(1));
 
         // Start both in the same cycle. A marker that is not cycle-aligned with
         // the data is worse than no marker, because it silently biases every
