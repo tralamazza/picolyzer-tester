@@ -29,7 +29,7 @@ test.
 
 ```sh
 picocom /dev/cu.usbmodem00011           # interactive (macOS; /dev/ttyACM0 on Linux)
-tools/console.py                        # or, from this repository: a 59-case self-check
+tools/console.py                        # or, from this repository: the self-check
 tools/console.py "square 0 1M" "status" # one-shot commands
 ```
 
@@ -114,9 +114,8 @@ Frequencies accept `115200`, `1M`, `2k5` (2500), `1M5` (1500000).
   heartbeat LED). One binary serves both boards.
 
 The marker starts in the same clock cycle as the data, so it is safe to trigger
-on. The synchronised group start is necessary but was not sufficient: it aligns
-the two state machines' clocks, not the instruction at which each first drives a
-pin. See the note under "What to trust".
+on. It was not always — see [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md) if you
+are relying on it for anything tight.
 
 ## What to trust
 
@@ -144,33 +143,13 @@ the point of the `status` field.
 - The slow end is not sub-hertz: `square`/`toggle`/`count` bottom out at
   1145 Hz, `walk` at 9 Hz, `gray`/`ramp` (width 8) at 144 Hz, `play` at
   2289 Sa/s. Anything slower is refused, never silently sped up.
-- **I2C is bit-banged from the CPU**, so its edge placement is approximate.
-  Fine for exercising a decoder, useless for measuring one. Its clock comes
-  from a model of the delay loop fitted to bench measurements, not from a
-  divider, so `actual_hz` is a prediction: measured within 1% of the report at
-  10 k, 50 k, 100 k and 400 kHz, and the ceiling is 617 kHz rather than the
-  1 MHz a PIO-driven bus would reach. That model is only valid for the machine
-  code it was fitted to, which is why the toolchain is pinned and `just guard`
-  fails if the codegen moves.
+- **I2C is bit-banged from the CPU**, so its edge placement is approximate and
+  `actual_hz` is a prediction rather than a divider setting. Fine for exercising
+  a decoder, useless for measuring one.
 
-**Verification status:** 46 host unit tests and 59 hardware checks pass on a
-Pico 2 W, covering every command, both ends of the rate range, the DMA
-streaming path at full rate, and the error paths.
-
-Measured against a logic analyzer at 200 MSa/s: frequency exact to the 75 MHz
-ceiling, including fractional divisors; a one-tick 6.666 ns `glitch` caught
-every time; `skew` accurate to within one sample at 1–75 ticks; UART, SPI and
-I2C decoding byte-exact. No scope has touched a pin, so rise times and
-crosstalk remain unmeasured.
-
-The GP16 marker was found to rise one PIO cycle (6.666 ns) after the data, and
-that lag is fixed as of v0.5.1 — an earlier statistical check had missed it.
-After the fix the marker rises in the same sample as the data at 25 MSa/s,
-measured in both engines: with `walk` at one cycle per sample and with `count`
-at two, where the residual would have shown up as a half tick rather than a
-whole one. That bounds the remaining offset to well under one 40 ns sample, but
-it is not the same as proving it zero; a sub-cycle skew would need a faster
-capture than anything used here.
+Everything above has been checked on an analyzer, and no oscilloscope has
+touched a pin — so rise times and crosstalk remain unmeasured. Numbers, method,
+and one retracted claim are in [docs/MEASUREMENTS.md](docs/MEASUREMENTS.md).
 
 ## Testing recipes
 
@@ -206,20 +185,17 @@ workflow is one command each:
 ```sh
 just check     # fmt, clippy, host unit tests - no hardware needed
 just guard     # check the I2C timing model still matches the generated code
-just verify    # check, plus the 59 hardware checks over USB
+just verify    # check, plus the hardware self-check over USB
 just flash     # build and download over a debug probe
 just uf2       # build and package picolyzer-tester-v<version>.uf2
 just release minor   # flash + verify, bump, tag, push, reflash, draft the release
 ```
 
-The toolchain is pinned in `rust-toolchain.toml`. That is not habit: the two
-constants in `crates/tester-core/src/i2c_timing.rs` are fitted to the machine
-code LLVM emits for the I2C delay loop, so they describe the compiler's output
-rather than the chip. `just guard` hashes the instruction bytes of that one
-function; if a toolchain or HAL bump reshapes it, the build fails and says to
-re-measure SCL on an analyzer before `actual_hz` can be trusted again. Bumping
-the pin is a deliberate act. CI also runs clippy on `stable` as a non-blocking
-job, so new lints still surface.
+The toolchain is pinned in `rust-toolchain.toml`. That is not habit — the I2C
+timing constants are fitted to the machine code LLVM emits, and `just guard`
+fails the build if that code changes underneath them
+([why](docs/MEASUREMENTS.md#i2c-timing-model)). CI also runs clippy on `stable`
+as a non-blocking job, so new lints still surface.
 
 Without `just`, the same steps by hand — note the explicit `--target`, since
 `.cargo/config.toml` defaults every build to the RP2350:
