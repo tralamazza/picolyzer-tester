@@ -205,7 +205,15 @@ impl Proto {
 
     /// Whether a burst is still being fed out.
     pub fn busy(&self) -> bool {
-        self.active != Active::None && self.cursor < self.len
+        match self.active {
+            Active::None => false,
+            // Queueing the last byte is not the end of a SPI frame: the machine
+            // is still shifting it and chip select is still asserted. `service`
+            // clears `active` once it has seen the machine run dry, so staying
+            // busy until then is what makes `status` agree with the pins.
+            Active::Spi => true,
+            Active::Uart => self.cursor < self.len,
+        }
     }
 
     /// Send bytes as 8N1 UART frames.
@@ -277,6 +285,10 @@ impl Proto {
 
         let _ = self.cs.set_low();
         let sm = sm.start();
+        // TXSTALL is sticky, so a stall left over from the previous transfer
+        // would otherwise be read as "this one has already finished" and drop
+        // chip select before the first bit went out.
+        tx.clear_stalled_flag();
         self.spi = Slot::Running { sm, rx, tx };
         self.service();
         Ok(())
@@ -296,6 +308,7 @@ impl Proto {
                 }
             }
             Active::Spi => {
+                let mut done = false;
                 if let Slot::Running { ref mut tx, .. } = self.spi {
                     while self.cursor < self.len && !tx.is_full() {
                         // Left shift takes the MSB first, so the byte sits in
@@ -303,6 +316,28 @@ impl Proto {
                         tx.write((self.payload[self.cursor] as u32) << 24);
                         self.cursor += 1;
                     }
+
+                    if self.cursor < self.len {
+                        // Bytes still to come, so a stall here is the CPU
+                        // failing to refill in time, not the end of the frame.
+                        // Clear it, or the underrun would later be mistaken for
+                        // completion and cut chip select short.
+                        tx.clear_stalled_flag();
+                    } else {
+                        // Every byte is queued, so the only way the machine can
+                        // starve now is by having clocked the last bit of the
+                        // last byte and come back for more. Waiting for the
+                        // FIFO to empty is not enough: the final byte is still
+                        // in the OSR at that point.
+                        done = tx.has_stalled();
+                    }
+                }
+                if done {
+                    // Release chip select. Until this existed the line stayed
+                    // asserted until the *next* protocol command called stop(),
+                    // so a decoder saw a transaction that never ended.
+                    let _ = self.cs.set_high();
+                    self.active = Active::None;
                 }
             }
         }
