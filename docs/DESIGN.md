@@ -68,16 +68,36 @@ the 4096-sample buffer bounds:
 | `gray`, `ramp` (width 8, 256 samples) | 144 Hz |
 | `play` | 2289 Sa/s |
 
+Narrower patterns therefore reach lower, since they spend fewer of the 4096
+samples per pass: `walk` at width 2 runs down to 2 Hz, and only there does the
+divider itself finally become the binding constraint.
+
 Anything slower is refused with `err rate below minimum divider rate` or
-`err pattern too long`, never silently sped up.
+`err pattern too long`, never silently sped up — and which of the two you get
+tells you whether to lower the width or give up on the rate.
 
 The one caveat at the fast end is **short looping patterns at high rates**.
-Closing the DMA loop costs a chain-and-retrigger round trip, so a loop whose
-iteration is shorter than roughly 200 ns drains the FIFO before the reload
-lands. Measured: at 150 MSa/s a 32-sample loop is clean and a 16-sample one is
-not; a 4-sample loop is clean to 50 MSa/s and not at 75. `txstall=yes` reports
-it every time. For a short, fast, repeating waveform use `toggle`, which has
-no loop to close.
+Closing the DMA loop costs a chain-and-retrigger round trip, and a loop short
+enough that the reload cannot land before the FIFO empties drops samples.
+Measured, by loop length against play rate:
+
+| Loop | Highest clean rate |
+|---|---|
+| 4 samples | 50 MSa/s |
+| 8 samples | 75 MSa/s |
+| 16 samples | 125 MSa/s |
+| 32 samples and up | 150 MSa/s — no stall at any rate |
+
+The discriminator is *not* loop duration, which is the obvious guess and is
+wrong: a 4-sample loop is clean at 80 ns per iteration while a 16-sample loop
+stalls at 107 ns. Length and rate both matter and the mechanism behind the exact
+boundary has not been pinned down, so the table is measurements rather than a
+model — and the boundary sits somewhere between adjacent columns, not on them.
+
+`txstall=yes` reports it every time, so a capture is never silently wrong. Two
+ways around it: use `toggle`, which has no loop to close, or pad the pattern —
+the same 4-sample waveform written out eight times to fill 32 samples runs clean
+at the full 150 MSa/s.
 
 ## Pin choices
 
@@ -85,8 +105,9 @@ GP23, GP24, GP25 and GP29 are never touched: on a plain Pico 2 they are SMPS
 mode, VBUS sense, the LED and VSYS sense; on a Pico 2 W the same four pins are
 the CYW43439 wireless interface. In particular there is no heartbeat LED
 (GP25 is the LED on a Pico 2 but the wireless chip select on a W), which is
-what keeps one binary working on both boards. Everything the firmware does use
-— GP0..GP22 and GP26..GP28 — is on the 40-pin header of both boards.
+what keeps one binary working on both boards. Everything the firmware does
+drive — GP0..GP17, GP19..GP22 and GP26 — is on the 40-pin header of both
+boards; GP18, GP27 and GP28 are there too but left free.
 
 ## No RTT, on purpose
 

@@ -16,7 +16,7 @@ ringing one that happens to cross at the right moment.
 |---|---|
 | Frequency | Exact to the 75 MHz ceiling, fractional divisors included. 65.084746 MHz commanded read 65.0845 MHz. |
 | Timebase | Agrees with the analyzer to −2.0 ppm. |
-| Minimum pulse | The one-tick 6.666 ns `glitch` caught every time, at 200 and at 800 MSa/s. |
+| Minimum pulse | The one-tick 6.666 ns `glitch` caught every time at 200 MSa/s. At 800 MSa/s the same width was checked with `pulse` (a repeating train, so no trigger is needed): 250 pulses, none missed, reading 5.33 samples as predicted. |
 | `skew` | Within one sample at 1–75 ticks. Commanded 1/5/20/75 ticks read 1/7/27/100 samples at 200 MSa/s against 1.33/6.67/26.66/99.99 predicted. |
 | Inter-channel skew | 0.43 ns spread across GP0–GP7 driven by one state machine, 501 edges each at 400 MSa/s. |
 | Dropped samples | None. A 1 M-sample `gray` run gave 4998/4998 single-bit steps. |
@@ -100,6 +100,11 @@ SLogic16 U3 live on a `sipeed-slogic-fixes` branch of libsigrok.
   throughput headroom, so armed captures need to stay at or below ~100 MB/s even
   though the hardware sustains 400 MB/s untriggered. Not a bug — a limit worth
   knowing, since exceeding it silently returns no trigger.
+- **Highs are stretched by 0.2–0.3 ns**, and by ~0.5 ns at the 6.666 ns floor.
+  Across the pulse sweep every mean width sat above prediction (5.73 vs 5.33,
+  16.25 vs 16.00, 80.23 vs 79.99) while the period stayed exactly 800 samples,
+  so the lows absorb it — consistent with a threshold not centred on the swing.
+  Only matters when measuring duty cycle near the resolution floor.
 
 The general lesson is the one this project is built around: when a source and an
 instrument disagree, the instrument is a suspect too.

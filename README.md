@@ -141,8 +141,10 @@ the point of the `status` field.
   the FIFO before the DMA loop closes; `txstall=yes` reports it. For a short,
   fast, repeating waveform use `toggle`.
 - The slow end is not sub-hertz: `square`/`toggle`/`count` bottom out at
-  1145 Hz, `walk` at 9 Hz, `gray`/`ramp` (width 8) at 144 Hz, `play` at
-  2289 Sa/s. Anything slower is refused, never silently sped up.
+  1145 Hz, `walk` at 9 Hz across all 16 channels, `gray`/`ramp` (width 8) at
+  144 Hz, `play` at 2289 Sa/s. Narrower patterns reach lower — `walk 2 2` runs
+  at 2 Hz — since what binds is the 4096-sample buffer, not the clock. Anything
+  slower is refused, never silently sped up.
 - **I2C is bit-banged from the CPU**, so its edge placement is approximate and
   `actual_hz` is a prediction rather than a divider setting. Fine for exercising
   a decoder, useless for measuring one.

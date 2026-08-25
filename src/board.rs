@@ -14,8 +14,9 @@
 //! radio. The USB console is the liveness indicator instead, which costs
 //! nothing and keeps one binary working on both boards.
 //!
-//! Everything used here - GP0..GP22 and GP26..GP28 - is on the 40-pin header of
-//! both boards, in the same places.
+//! Everything driven here - GP0..GP17, GP19..GP22 and GP26 - is on the 40-pin
+//! header of both boards, in the same places. GP18, GP27 and GP28 are on the
+//! header too but are left free.
 
 use rp235x_hal as hal;
 
