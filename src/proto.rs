@@ -310,25 +310,32 @@ impl Proto {
             Active::Spi => {
                 let mut done = false;
                 if let Slot::Running { ref mut tx, .. } = self.spi {
+                    let mut wrote = false;
                     while self.cursor < self.len && !tx.is_full() {
                         // Left shift takes the MSB first, so the byte sits in
                         // the top of the word.
                         tx.write((self.payload[self.cursor] as u32) << 24);
                         self.cursor += 1;
+                        wrote = true;
                     }
 
-                    if self.cursor < self.len {
-                        // Bytes still to come, so a stall here is the CPU
-                        // failing to refill in time, not the end of the frame.
-                        // Clear it, or the underrun would later be mistaken for
-                        // completion and cut chip select short.
+                    if wrote || self.cursor < self.len {
+                        // Any stall recorded so far predates this data and must
+                        // not be read as completion. Two ways it gets set early:
+                        // `spi_send` starts the machine before it can queue the
+                        // first byte, so the machine stalls on an empty FIFO
+                        // immediately; and mid-frame the CPU can fail to refill.
+                        // Clearing after every write covers both. Doing this
+                        // only in `spi_send` is not enough - the machine
+                        // re-stalls in the gap before the first write, which
+                        // dropped chip select one bit into the frame.
                         tx.clear_stalled_flag();
                     } else {
-                        // Every byte is queued, so the only way the machine can
-                        // starve now is by having clocked the last bit of the
-                        // last byte and come back for more. Waiting for the
-                        // FIFO to empty is not enough: the final byte is still
-                        // in the OSR at that point.
+                        // Nothing left to queue and nothing written this call,
+                        // so a stall now can only mean the machine clocked the
+                        // last bit and came back for more. Waiting for the FIFO
+                        // to empty is not enough: the final byte is still in the
+                        // OSR at that point.
                         done = tx.has_stalled();
                     }
                 }
