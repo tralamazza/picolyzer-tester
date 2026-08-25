@@ -176,10 +176,20 @@ impl Bus {
 
         // Trigger marker: a pulse whose width in cycles comes from the FIFO,
         // then back to blocking on `pull` so it fires exactly once per burst.
+        //
+        // `set pins, 1` sits between the pull and the mov, not after both. The
+        // synchronised start aligns the two state machines' clocks, but each
+        // still has to reach its first pin-driving instruction, and with the set
+        // in third position the marker rose one cycle after the data. Measured
+        // against `walk` (one cycle per sample) the lag was exactly one bus
+        // tick, and against `count` (two cycles per sample) exactly half of one
+        // - the same single cycle both times. Raising the pin one instruction
+        // earlier cancels it, and costs one cycle of width that `launch`
+        // subtracts back out.
         let marker = pio::pio_asm!(
             "    pull block",
-            "    mov x, osr",
             "    set pins, 1",
+            "    mov x, osr",
             "hold:",
             "    jmp x--, hold",
             "    set pins, 0",
@@ -485,14 +495,13 @@ impl Bus {
             .out_shift_direction(ShiftDirection::Right)
             .build(self.take_sm1());
         sm1.set_pindirs([(MARKER_PIN, PinDir::Output)]);
-        // The marker program holds the pin high for `x + 2` cycles: `jmp x--`
-        // runs x+1 times, and the pin only drops at the end of the following
-        // `set pins, 0`. Measured on an SLogic16 U3 at 5 MSa/s: 8 written gave
-        // 250 samples under `count 100k` (10 cycles of a 200 kHz SM clock) and
-        // 500 under `ramp 100k` (10 cycles at 100 kHz). Solving back through
-        // both gives the width in ticks the caller asked for.
+        // The marker program holds the pin high for `x + 3` cycles: the `mov`
+        // that follows the raise, then `jmp x--` running x+1 times, then the
+        // `set pins, 0` at whose end the pin drops. Subtract that overhead so
+        // the caller gets the width it asked for, in the ticks it reasons about
+        // rather than in this program's instruction count.
         let cycles = marker_ticks.max(1).saturating_mul(cycles_per_tick.max(1));
-        tx1.write(cycles.saturating_sub(2).max(1));
+        tx1.write(cycles.saturating_sub(3).max(1));
 
         // Start both in the same cycle. A marker that is not cycle-aligned with
         // the data is worse than no marker, because it silently biases every

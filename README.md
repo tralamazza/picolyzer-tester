@@ -113,8 +113,10 @@ Frequencies accept `115200`, `1M`, `2k5` (2500), `1M5` (1500000).
   a Pico 2 W (and GP25 is the LED on a plain Pico 2 — there is deliberately no
   heartbeat LED). One binary serves both boards.
 
-The marker starts in the same clock cycle as the data (PIO synchronised group
-start), so it is safe to trigger on.
+The marker starts in the same clock cycle as the data, so it is safe to trigger
+on. The synchronised group start is necessary but was not sufficient: it aligns
+the two state machines' clocks, not the instruction at which each first drives a
+pin. See the note under "What to trust".
 
 ## What to trust
 
@@ -157,10 +159,18 @@ streaming path at full rate, and the error paths.
 
 Measured against a logic analyzer at 200 MSa/s: frequency exact to the 75 MHz
 ceiling, including fractional divisors; a one-tick 6.666 ns `glitch` caught
-every time; `skew` accurate to within one sample at 1–75 ticks; the GP16 marker
-rising in the same sample as the data, indistinguishable from two pins driven
-by the same state machine; UART, SPI and I2C decoding byte-exact. No scope has
-touched a pin, so rise times and crosstalk remain unmeasured.
+every time; `skew` accurate to within one sample at 1–75 ticks; UART, SPI and
+I2C decoding byte-exact. No scope has touched a pin, so rise times and
+crosstalk remain unmeasured.
+
+The GP16 marker was found to rise one PIO cycle (6.666 ns) after the data, and
+that lag is fixed as of v0.5.1 — an earlier statistical check had missed it.
+After the fix the marker rises in the same sample as the data at 25 MSa/s,
+measured in both engines: with `walk` at one cycle per sample and with `count`
+at two, where the residual would have shown up as a half tick rather than a
+whole one. That bounds the remaining offset to well under one 40 ns sample, but
+it is not the same as proving it zero; a sub-cycle skew would need a faster
+capture than anything used here.
 
 ## Testing recipes
 
