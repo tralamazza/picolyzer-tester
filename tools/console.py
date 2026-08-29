@@ -9,6 +9,7 @@ Usage:
     tools/console.py                       # run the built-in self-check
     tools/console.py "square 0 1M" "status"
     tools/console.py --port /dev/cu.usbmodemXXXX "id"
+    tools/console.py --help [command]      # per-command help, with examples
 """
 
 import argparse
@@ -266,6 +267,278 @@ CHECKS = [
 ]
 
 
+# Command reference, printed by `--help`: name, usage, description,
+# (command, reply) example pairs, and notes. The replies are real captures
+# from v0.5.1, so the examples show exactly what the board prints.
+COMMANDS = [
+    (
+        "help", "",
+        "print the command list from the device itself",
+        [("help",
+          "commands:\n"
+          "help                      this text\n"
+          "id                        firmware, clock and channel count\n"
+          "pins                      pin map\n"
+          "stop                      stop output, drive all channels low\n"
+          "status                    current mode and stall flag\n"
+          "square <ch> <hz>          square wave on one channel\n"
+          "toggle <mask|all> <hz>    square wave on a channel mask\n"
+          "count <hz>                free-running 16-bit binary count\n"
+          "pulse <ch> <hi_ns> <period_ns>\n"
+          "glitch <ch> <ticks>       one narrow pulse, ticks x 6.666ns\n"
+          "skew <chA> <chB> <ticks>  two rising edges, ticks apart\n"
+          "walk <hz> [width]         walking ones\n"
+          "walkz <hz> [width]        walking zeros\n"
+          "gray <hz> [width]         gray code sweep\n"
+          "ramp <hz> [width]         binary count via the pattern engine\n"
+          "load <hex> <hex> ...      arbitrary 16-bit samples\n"
+          "play <hz> [loop]          play the loaded samples\n"
+          "uart <baud> <hex...>      8N1 frames on GP17\n"
+          "spi <hz> <hex...>         mode 0, MSB first, GP19/20/21\n"
+          "i2c <hz> <addr7> <hex...> bit-banged, GP22/GP26\n"
+          "examples:\n"
+          "square 0 1M                 1 MHz square wave on channel 0\n"
+          "toggle all 75M              75 MHz on all 16 channels\n"
+          "count 1M                    16-bit counter at 1 MHz\n"
+          "glitch 0 1                  one 6.666 ns pulse on channel 0\n"
+          "skew 0 1 3                  rising edges ~20 ns apart on GP0/GP1\n"
+          "pulse 0 100 1000            100 ns high, 1000 ns period, channel 0\n"
+          "walk 100k 8                 walking ones on the low 8 channels\n"
+          "gray 100k 12                widest gray sweep that fits the buffer\n"
+          "load 0x0001 0x0002 0x0004   load three 16-bit samples\n"
+          "play 1M loop                play them looping at 1 MSa/s\n"
+          "uart 115200 48 65 6c 6c 6f  sends \"Hello\" at 115200 baud\n"
+          "spi 1M de ad be ef          4 bytes at 1 MHz\n"
+          "i2c 100k 0x50 00 ff         write 00 ff to address 0x50\n"
+          "full reference with example replies: tools/console.py --help\n"
+          "numbers: 42  0xff  0b1010_1010   frequencies: 115200  1M  2k5\n"
+          "ok")],
+        "multi-line output, closed by a bare `ok`",
+    ),
+    (
+        "id", "",
+        "firmware version, system clock, channel count, tick resolution",
+        [("id",
+          "ok fw=picolyzer-tester/0.5.1 sysclk=150000000 channels=16 "
+          "tick_ps=6666 max_samples=4096 xtal_ppm=30")],
+        "tick_ps is the timing resolution: a 150 MHz clock is 6.666 ns per tick",
+    ),
+    (
+        "pins", "",
+        "pin map: which GPIO each signal comes out on",
+        [("pins",
+          "pin map (identical on Pico 2 and Pico 2 W):\n"
+          "GP0..GP15  channels 0..15, the 16-bit bus\n"
+          "GP16       trigger marker, pulsed at the start of every burst\n"
+          "GP17       UART TX, 8N1, PIO-clocked\n"
+          "GP19/20/21 SPI SCK/MOSI (PIO-clocked) and CS (CPU-driven)\n"
+          "GP22, GP26 I2C SCL/SDA, CPU bit-banged, push-pull - no slaves!\n"
+          "GND        use several - one ground per few channels\n"
+          "GP23/24/25/29 are untouched: they are the wireless interface on a Pico 2 W.\n"
+          "ok")],
+        "multi-line output, closed by a bare `ok`",
+    ),
+    (
+        "stop", "",
+        "stop output, drive all channels low",
+        [("stop", "ok")],
+        "does not clear the pattern buffer: `status` still reports the last sample count",
+    ),
+    (
+        "status", "",
+        "current mode, sample count, stall flag, DMA and protocol state",
+        [("status", "ok mode=stopped samples=4 txstall=no dma=idle proto=idle")],
+        "txstall=yes means the device dropped samples in the last run - discard that "
+        "capture. `play` reports ok first; the stall shows up here, on the next status",
+    ),
+    (
+        "square", "<ch> <hz>",
+        "square wave on one channel",
+        [
+            ("square 0 1M",
+             "ok mode=toggle mask=0x0001 req_hz=1000000 actual_hz=1000000.000 "
+             "div=75+0/256"),
+            ("square 0 7M",
+             "ok mode=toggle mask=0x0001 req_hz=7000000 actual_hz=6999635.435 "
+             "div=10+183/256"),
+        ],
+        "reports the achieved rate, never the request. 1145 Hz to 75 MHz; below that "
+        "`err rate below minimum divider rate`, above `err rate above sysclk`",
+    ),
+    (
+        "toggle", "<mask|all> <hz>",
+        "square wave on a channel mask; `all` is every channel",
+        [
+            ("toggle all 75M",
+             "ok mode=toggle mask=0xffff req_hz=75000000 actual_hz=75000000.000 "
+             "div=1+0/256"),
+            ("toggle 0xff 1M",
+             "ok mode=toggle mask=0x00ff req_hz=1000000 actual_hz=1000000.000 "
+             "div=75+0/256"),
+        ],
+        "a FIFO-free PIO loop, so it cannot drop samples. `toggle 0 1M` -> "
+        "`err mask selects no channels`. 1145 Hz to 75 MHz",
+    ),
+    (
+        "count", "<hz>",
+        "free-running 16-bit binary count on all channels, wrapping at 65536",
+        [("count 1M",
+          "ok mode=count codes=65536 req_hz=1000000 actual_hz=1000000.000 "
+          "div=75+0/256")],
+        "same rate bounds as `square`",
+    ),
+    (
+        "pulse", "<ch> <hi_ns> <period_ns>",
+        "repeating pulse train on one channel, durations in nanoseconds",
+        [("pulse 0 100 1000",
+          "ok mode=pulse high_ps=99990 period_ps=999900 samples=150")],
+        "durations snap to the 6.666 ns tick: 100 ns becomes high_ps=99990",
+    ),
+    (
+        "glitch", "<ch> <ticks>",
+        "one narrow pulse, ticks x 6.666 ns",
+        [("glitch 0 1",
+          "ok mode=glitch ticks=1 width_ps=6666 samples=4 preloaded=yes")],
+        "preloaded=yes: the whole burst was in the FIFO before the clock started, so it "
+        "cannot have dropped a sample. If the analyzer misses it, the limit is on its side",
+    ),
+    (
+        "skew", "<chA> <chB> <ticks>",
+        "two rising edges, ticks apart, on two different channels",
+        [("skew 0 1 3", "ok mode=skew ticks=3 width_ps=19998 samples=8 preloaded=yes")],
+        "same channel twice -> `err skew needs two different channels`",
+    ),
+    (
+        "walk", "<hz> [width]",
+        "walking ones: one high bit sweeping across the bus",
+        [("walk 100k",
+          "ok mode=walk width=16 req_hz=100000 actual_hz=100000.000 repeat=1 "
+          "samples=16")],
+        "width defaults to 16; `walk 100k 8` for a narrower analyzer. Reaches down to "
+        "9 Hz across all 16 channels (repeat=255, samples=4080); slower is refused as "
+        "`err pattern too long` - the buffer, not the clock, is the bound",
+    ),
+    (
+        "walkz", "<hz> [width]",
+        "walking zeros: the same sweep, inverted",
+        [("walkz 100k",
+          "ok mode=walkz width=16 req_hz=100000 actual_hz=100000.000 repeat=1 "
+          "samples=16")],
+        "same bounds as `walk`",
+    ),
+    (
+        "gray", "<hz> [width]",
+        "gray-code sweep: exactly one bit changes per step",
+        [
+            ("gray 100k",
+             "ok mode=gray width=8 req_hz=100000 actual_hz=100000.000 repeat=1 "
+             "samples=256"),
+            ("gray 100k 12",
+             "ok mode=gray width=12 req_hz=100000 actual_hz=100000.000 repeat=1 "
+             "samples=4096"),
+        ],
+        "width defaults to 8: a 16-bit sweep is 65536 samples and does not fit. 12 is "
+        "the widest that fits the 4096-sample buffer; 13 -> `err pattern too long "
+        "needed=4097 capacity=4096`. Lowest rate 144 Hz",
+    ),
+    (
+        "ramp", "<hz> [width]",
+        "binary count via the pattern engine",
+        [("ramp 100k",
+          "ok mode=ramp width=8 req_hz=100000 actual_hz=100000.000 repeat=1 "
+          "samples=256")],
+        "same buffer limits as `gray`",
+    ),
+    (
+        "load", "<sample> [sample ...]",
+        "load arbitrary 16-bit samples into the pattern buffer",
+        [("load 0x0001 0x0002 0x0004", "ok loaded=3 padded_to=4")],
+        "samples are 16-bit integers: hex, decimal or binary. Odd counts are padded to "
+        "even by repeating the last sample. A new `load` replaces the previous one",
+    ),
+    (
+        "play", "<hz> [loop]",
+        "play the loaded samples, once or looping",
+        [
+            ("play 1M",
+             "ok mode=play req_hz=1000000 actual_sps=1000000.000 samples=4 loop=false"),
+            ("play 150M loop",
+             "ok mode=play req_hz=150000000 actual_sps=150000000.000 samples=4 "
+             "loop=true"),
+        ],
+        "needs `load` first: on a fresh boot, `err no pattern loaded, use `load` "
+        "first`. The rate is actual_sps, samples per second, from 2289 Sa/s up; below "
+        "that `err rate below minimum divider rate`. A short loop above ~50 MSa/s may "
+        "drop samples - the next `status` then reports txstall=yes",
+    ),
+    (
+        "uart", "<baud> <hex> [hex ...]",
+        "UART 8N1 frames on GP17; payload bytes are always hex",
+        [("uart 115200 48 65 6c 6c 6f",
+          "ok mode=uart format=8N1 req_baud=115200 actual_baud=115199.078 "
+          "div=162+195/256 bytes=5")],
+        "sends `Hello`. Up to 32 bytes per command",
+    ),
+    (
+        "spi", "<hz> <hex> [hex ...]",
+        "SPI mode 0, MSB first, on GP19/20/21; payload bytes are always hex",
+        [("spi 1M de ad be ef",
+          "ok mode=spi spi_mode=0 bit_order=msb req_hz=1000000 "
+          "actual_hz=1000000.000 div=37+128/256 bytes=4")],
+        "up to 32 bytes per command",
+    ),
+    (
+        "i2c", "<hz> <addr7> <hex> [hex ...]",
+        "I2C write on GP22/GP26, bit-banged by the CPU",
+        [("i2c 100k 0x50 00 ff",
+          "ok mode=i2c addr=0x50 rw=write req_hz=100000 actual_hz=99601.593 "
+          "bytes=2 ack=none-no-slave")],
+        "push-pull, not open-drain: never wire a real I2C slave. Edge timing is "
+        "approximate - actual_hz is a model, not a divider readback - so this exercises "
+        "decoders but is not a timing reference. ack=none-no-slave is expected",
+    ),
+]
+
+NUMBERS = """
+Numbers and rates
+
+Integers are decimal unless prefixed: 42, 0xff, 0b1010_1010, 1_000_000.
+`load 10` loads ten; `load 0x10` loads sixteen.
+
+Payload bytes of uart, spi and i2c are always hex, with or without the 0x
+prefix: `uart 115200 48 65 6c 6c 6f` sends "Hello".
+
+Frequencies take k/M suffixes: 115200, 1M, 2k5 (2500), 1M5 (1500000).
+"""
+
+
+def print_reference(names):
+    """Print the offline command reference, filtered by `names` if given."""
+    known = {name for name, *_ in COMMANDS}
+    unknown = [n for n in names if n not in known and n != "numbers"]
+    if unknown:
+        for n in unknown:
+            print(f"unknown command: {n}", file=sys.stderr)
+        print("run `--help` alone to list every command", file=sys.stderr)
+        return 2
+    if not names or names == ["numbers"]:
+        print(NUMBERS.strip())
+        print()
+    for name, usage, description, examples, notes in COMMANDS:
+        if names and name not in names:
+            continue
+        print(f"{name} {usage}".strip())
+        print(f"    {description}")
+        for cmd, reply in examples:
+            print(f'    tools/console.py "{cmd}"')
+            for line in reply.splitlines():
+                print(f"      {line}")
+        if notes:
+            print(f"    {notes}")
+        print()
+    return 0
+
+
 def self_check(con):
     failures = 0
     for cmd, predicate, description in CHECKS:
@@ -282,10 +555,30 @@ def self_check(con):
 
 
 def main():
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(
+        add_help=False,
+        description="Drive the picolyzer-tester USB console from the host.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Each argument is one command line sent to the board, so quote any\n"
+            "command that contains spaces:\n"
+            "    tools/console.py \"uart 115200 48 65 6c 6c 6f\" \"status\"\n"
+            "With no arguments, the built-in self-check runs."
+        ),
+    )
+    ap.add_argument(
+        "-h", "--help", nargs="?", const="", metavar="CMD",
+        help="per-command help with examples; no board needed",
+    )
     ap.add_argument("--port")
     ap.add_argument("commands", nargs="*")
     args = ap.parse_args()
+
+    if args.help is not None:
+        if not args.help:
+            print(ap.format_help().rstrip())
+            print()
+        return print_reference([args.help] if args.help else [])
 
     port = find_port(args.port)
     print(f"# port: {port}", file=sys.stderr)

@@ -31,6 +31,7 @@ test.
 picocom /dev/cu.usbmodem00011           # interactive (macOS; /dev/ttyACM0 on Linux)
 tools/console.py                        # or, from this repository: the self-check
 tools/console.py "square 0 1M" "status" # one-shot commands
+tools/console.py --help                 # per-command help, with examples (offline)
 ```
 
 ## First session
